@@ -49,9 +49,12 @@ class DirichletMixture:
     def run_and_plot(self):
         chains = self.gibbs()
         alpha0_chain = chains['alpha'][:,0]
-        plt.figure(111);
+        beta00_chain = chains['beta'][:,0,0]
+        plt.figure(111)
         plt.plot(range(len(alpha0_chain)), alpha0_chain)
         plt.figure(112)
+        plt.plot(range(len(beta00_chain)), beta00_chain)
+        plt.figure(113)
         plt.acorr(alpha0_chain, maxlags=500)
         plt.show()
 
