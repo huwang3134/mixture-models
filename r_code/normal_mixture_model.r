@@ -74,45 +74,44 @@ acf(mu[1:chain_length,1], lag.max=10000);
 dev.new();
 acf(alpha[1:chain_length,1], lag.max=10000);
 
-pred_size=100;
-sample_size=50;
+burn_in = 201;
 thin_interval = 2000;
-y_pred = matrix(nrow=pred_size, ncol=sample_size);
-less_1 = array(dim=pred_size);
-less_2 = array(dim_pred_size);
-less_3 = array(dim=pred_size);
-less_4 = array(dim=pred_size);
-for (i in 1:pred_size) {
-    mu_draw = mu[201+(i-1)*thin_interval,1:num_components];
-    sigmasq_draw = sigmasq[201+(i-1)*thin_interval,1:num_components];
-    alpha_draw = sigmasq[201+(i-1)*thin_interval,1:num_components];
-    for (j in 1:sample_size) {
-        if (runif(n=1) < alpha_draw[1]) {
-            y[i,j] = rnorm(n=1, mean=mu_draw[1], sd=sqrt(sigmasq_draw[1]));
-        }
-        else {
-            y[i,j] = rnorm(n=1, mean=mu_draw[2], sd=sqrt(sigmasq_draw[2]));
-        }
+sample_size = (chain_length-burn_in)/thin_interval;
+y_pred = array(dim=sample_size);
+num_bins = sample_size/2+1;
+bins = (0:(num_bins-1))*(5/(num_bins-1));
+bins = c(0, bins);
+pred_bins = array(data=0, dim=length(bins));
+for (i in 1:sample_size) {
+    mu_draw = mu[burn_in+(i-1)*thin_interval,1:num_components];
+    sigmasq_draw = sigmasq[burn_in+(i-1)*thin_interval,1:num_components];
+    alpha_draw = alpha[burn_in+(i-1)*thin_interval,1:num_components];
+    y = -1;
+    if (runif(n=1) < alpha_draw[1]) {
+        y rnorm(n=1, mean=mu_draw[1], sd=sqrt(sigmasq_draw[1]));
     }
-    this_less_1 = y[i,1:sample_size] < 1;
-    prop_less_1 = sum(this_less_1)/sample_size;
-    this_less_2 = y[i,1:sample_size] < 2;
-    prop_less_2 = sum(this_less_2)/sample_size;
-    this_less_3 = y[i,1:sample_size] < 3;
-    prop_less_3 = sum(this_less_3)/sample_size;
-    this_less_4 = y[i,1:sample_size] < 4;
-    prop_less_4 = sum(this_less_4)/sample_size;
-    less_1[i] = prop_less_1;
-    less_2[i] = prop_less_2;
-    less_3[i] = prop_less_3;
-    less_4[i] = prop_less_4;
+    else {
+        y = rnorm(n=1, mean=mu_draw[2], sd=sqrt(sigmasq_draw[2]));
+    }
+    y_pred[i] = y;
+    if (y < 0) {
+        pred_bins[1] = pred_bins[1]+1;
+    }
+    else {
+        index = which.min(max(0, y-bins[2:length(bins)]));
+        pred_bins[index+1] = pred_bins[index+1]+1;
+    }
 }
-print('pval less than 1');
-ytest_len = length(y_test);
-print(sum(less_1 >= sum(y_test < 1)/ytest_len)/pred_size);
-print('pval less than 2');
-print(sum(less_2 >= sum(y_test < 2)/ytest_len)/pred_size);
-print('pval less than 3');
-print(sum(less_3 >= sum(y_test < 3)/ytest_len)/pred_size);
-print('pval less than 4');
-print(sum(less_4 >= sum(y_test < 4)ytest_len)/pred_size);
+test_bins = array(data=0, dim=length(bins));
+for (i in 1:length(y_test)) {
+    if (y_test[i] < 0) {
+        pred_bins[1] = pred_bins[1]+1;
+    }
+    else {
+        index = which.min(max(0, y_test[i]-bins[2:length(bins)]));
+        test_bins[index+1] = test_bins[index+1]+1;
+    }
+}
+test_bins = test_bins[pred_bins > 0];
+pred_bins = pred_bins[pred_bins > 0];
+print(sum(((pred_bins-test_bins)^2)/pred_bins));
