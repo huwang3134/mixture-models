@@ -1,9 +1,7 @@
-tbl <- read.csv('ratings.csv');
-y <- tbl$avg_rating;
-permutation = sample.int(length(y));
-train_prop = 0.8;
-y_train = y[permutation[1:as.integer(length(y)*train_prop)]];
-y_test = y[permutation[(as.integer(length(y)*train_prop)+1):length(y)]];
+tbl <- read.csv('train_ratings.csv');
+y_train <- tbl$avg_rating;
+tbl2 <- read.csv('test_ratings.csv');
+y_test <- tbl2$avg_rating;
 y = y_train;
 
 nu0 = 1;
@@ -18,9 +16,9 @@ sig1alpha <- 1;
 sig1beta <- 0.5*nu0*sigmasq0
 sig2alpha <- 1;
 sig2beta <- 0.5*nu0*sigmasq0;
-lambda1 <- 2.5;
+lambda1 <- 2.6;
 tau1 <- sigmasq0/k0;
-lambda2 <- 2.5;
+lambda2 <- 2.4;
 tau2 <- sigmasq0/k0;
 alpha_alpha <- 1;
 alpha_beta <- 1;
@@ -98,3 +96,63 @@ print('alpha_alpha');
 print(alpha_alpha);
 print('alpha_beta');
 print(alpha_beta);
+
+sample_size = 100;
+y_pred = array(dim=sample_size);
+num_bins = 6;
+bins = (0:(num_bins-1))*(5/(num_bins-1));
+bins = c(0, bins);
+pred_bins = array(data=0, dim=length(bins));
+for (i in 1:sample_size) {
+    mu_draw = c(rnorm(mean=lambda1, sd=sqrt(tau1), n=1), rnorm(mean=lambda2, sd=sqrt(tau2), n=1));
+    sigmasq_draw = c(1/rgamma(shape=sig1alpha, rate=sig1beta, n=1), 1/rgamma(shape=sig2alpha, rate=sig2beta, n=1));
+    alpha_draw1 = rbeta(shape1=alpha_alpha, shape2=alpha_beta, n=1);
+    alpha_draw = c(alpha_draw1, 1-alpha_draw1);
+    y = -1;
+    if (runif(n=1) < alpha_draw[1]) {
+        y = rnorm(n=1, mean=mu_draw[1], sd=sqrt(sigmasq_draw[1]));
+    }
+    else {
+        y = rnorm(n=1, mean=mu_draw[2], sd=sqrt(sigmasq_draw[2]));
+    }
+    y_pred[i] = y;
+    if (y < 0) {
+        pred_bins[1] = pred_bins[1]+1;
+    }
+    else {
+        index = which.min(abs(y-bins[2:length(bins)]));
+        if (bins[index+1] > y) {
+            pred_bins[index] = pred_bins[index]+1;
+        }
+        else {
+            pred_bins[index+1] = pred_bins[index+1]+1;
+        }
+    }
+}
+test_bins = array(data=0, dim=length(bins));
+for (i in 1:length(y_test)) {
+    if (y_test[i] < 0) {
+        test_bins[1] = test_bins[1]+1;
+    }
+    else {
+        index = which.min(abs(y_test[i]-bins[2:length(bins)]));
+        if (bins[index+1] > y_test[i]) {
+            test_bins[index] = test_bins[index]+1;
+        }
+        else {
+            test_bins[index+1] = test_bins[index+1]+1;
+        }
+    }
+}
+print((pred_bins > 0));
+test_bins = test_bins[pred_bins > 0];
+pred_bins = pred_bins[pred_bins > 0];
+pred_bins = pred_bins*length(y_test)/sample_size;
+print(sum(((pred_bins-test_bins)^2)/pred_bins));
+print(pred_bins);
+print(test_bins);
+print(bins);
+dev.new();
+hist(y_pred, plot=TRUE, main='Histogram of predicted values from Variational Inference');
+dev.new();
+hist(y_test, plot=TRUE, main='Histogram of holdout data');

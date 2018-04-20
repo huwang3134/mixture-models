@@ -14,7 +14,7 @@ computeI <- function(mu, sigmasq, alpha, y) {
     return(I);
 };
 
-chain_length <- 200201;
+chain_length <- 201001;
 num_components = 2;
 mu <- matrix(nrow=chain_length, ncol=num_components);
 mu[1,1:2] <- c(5, 1);
@@ -23,12 +23,10 @@ sigmasq[1,1:2] <- c(1, 1);
 alpha <- matrix(nrow=chain_length, ncol=num_components);
 alpha[1,1:2] <- c(0.5, 0.5);
 i <- 2;
-tbl <- read.csv('ratings.csv', header=TRUE);
-y <- tbl$avg_rating;
-permutation = sample.int(length(y));
-train_prop = 0.8;
-y_train = y[permutation[1:as.integer(length(y)*train_prop)]];
-y_test = y[permutation[as.integer(length(y)*train_prop)+1:length(y)]];
+tbl <- read.csv('train_ratings.csv', header=TRUE);
+y_train <- tbl$avg_rating;
+tbl2 <- read.csv('test_ratings.csv', header=TRUE);
+y_test <- tbl2$avg_rating;
 y = y_train;
 
 nu0 = c(1, 1);
@@ -66,19 +64,28 @@ while (i <= chain_length) {
     i = i+1;
 }
 
-plot(1:chain_length,mu[1:chain_length,1]);
+display_length = 5000;
+plot(1:display_length,mu[1:display_length,1]);
 dev.new();
-plot(1:chain_length,mu[1:chain_length,2]);
+plot(1:display_length,mu[1:display_length,2]);
+dev.new();
+plot(1:display_length,sigmasq[1:display_length,1]);
+dev.new();
+plot(1:display_length,sigmasq[1:display_length,2]);
+dev.new();
+plot(1:display_length, alpha[1:display_length,1]);
 dev.new();
 acf(mu[1:chain_length,1], lag.max=10000);
 dev.new();
+acf(sigmasq[1:chain_length,1], lag.max=10000);
+dev.new();
 acf(alpha[1:chain_length,1], lag.max=10000);
 
-burn_in = 201;
+burn_in = 1001;
 thin_interval = 2000;
 sample_size = (chain_length-burn_in)/thin_interval;
 y_pred = array(dim=sample_size);
-num_bins = sample_size/2+1;
+num_bins = 6;
 bins = (0:(num_bins-1))*(5/(num_bins-1));
 bins = c(0, bins);
 pred_bins = array(data=0, dim=length(bins));
@@ -88,7 +95,7 @@ for (i in 1:sample_size) {
     alpha_draw = alpha[burn_in+(i-1)*thin_interval,1:num_components];
     y = -1;
     if (runif(n=1) < alpha_draw[1]) {
-        y rnorm(n=1, mean=mu_draw[1], sd=sqrt(sigmasq_draw[1]));
+        y = rnorm(n=1, mean=mu_draw[1], sd=sqrt(sigmasq_draw[1]));
     }
     else {
         y = rnorm(n=1, mean=mu_draw[2], sd=sqrt(sigmasq_draw[2]));
@@ -98,20 +105,39 @@ for (i in 1:sample_size) {
         pred_bins[1] = pred_bins[1]+1;
     }
     else {
-        index = which.min(max(0, y-bins[2:length(bins)]));
-        pred_bins[index+1] = pred_bins[index+1]+1;
+        index = which.min(abs(y-bins[2:length(bins)]));
+        if (bins[index+1] > y) {
+            pred_bins[index] = pred_bins[index]+1;
+        }
+        else {
+            pred_bins[index+1] = pred_bins[index+1]+1;
+        }
     }
 }
 test_bins = array(data=0, dim=length(bins));
 for (i in 1:length(y_test)) {
     if (y_test[i] < 0) {
-        pred_bins[1] = pred_bins[1]+1;
+        test_bins[1] = test_bins[1]+1;
     }
     else {
-        index = which.min(max(0, y_test[i]-bins[2:length(bins)]));
-        test_bins[index+1] = test_bins[index+1]+1;
+        index = which.min(abs(y_test[i]-bins[2:length(bins)]));
+        if (bins[index+1] > y_test[i]) {
+            test_bins[index] = test_bins[index]+1;
+        }
+        else {
+            test_bins[index+1] = test_bins[index+1]+1;
+        }
     }
 }
+print((pred_bins > 0));
 test_bins = test_bins[pred_bins > 0];
 pred_bins = pred_bins[pred_bins > 0];
+pred_bins = pred_bins*length(y_test)/sample_size;
 print(sum(((pred_bins-test_bins)^2)/pred_bins));
+print(pred_bins);
+print(test_bins);
+print(bins);
+dev.new();
+hist(y_pred, plot=TRUE, main='Histogram of Gibbs Sampler-generated Values');
+dev.new();
+hist(y_test, plot=TRUE, main='Histogram of Hold-out Data');
